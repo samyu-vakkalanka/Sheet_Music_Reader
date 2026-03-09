@@ -128,13 +128,30 @@ A validation set will be made from the training split (approximately 80/20) for 
 
 ## 5. Initial Baseline & Representation
 
-**Planned Approach:**
-<!-- Describe your CNN baseline plan and/or any early experiments -->
+See [`notebooks/eda.ipynb`](../notebooks/eda.ipynb) for my full implementation and visualizations.
+
+**Classical baseline implemented: Staff Line Detection via Horizontal Projection Profiles**
+
+Staff lines are detected by inverting the grayscale image, summing pixel intensities across each row to produce a projection profile, and identifying peaks above 60% of the maximum value. Lines are then grouped into staves in sets of 5. (source: https://ieeexplore.ieee.org/document/6628585)
+
+![Staff Line thresholds for identification](../notebooks/initial_baseline_outputs/thresholds.png)
+
+**Results on sample page:**
+- 60/60 staff lines correctly detected
+- 12 staves identified with consistent height (~66px each)
+- Zero false positives on a complex orchestral score page
+
+![Staff Line Identification and Grouping](../notebooks/initial_baseline_outputs/identification.png)
 
 **Early Observations:**
-<!-- What you've noticed from the data so far -->
+- The synthetic nature of the dataset makes classical CV techniques highly effective. The perfectly clean images mean that the project profiles are extremely sharp and reliable
+- This approach might not generalize well to real scanned music (skew, noise, degradation) which is why a deep learning approach should be implemented for check-in 2
+- Overall though, staff position detection is a good first step for pitch inference: once staves are located, notehead positions can be connected to their pitch by using the relative staff position annotations already provided in DeepScores V2
 
 ---
 
 ## Next Steps
-<!-- What you're doing between now and check-in 2 -->
+- Convert DeepScores V2 annotations to COCO format to make sure they can work with normal detection frameworks
+- Fine-tune YOLOv8 or Faster R-CNN on in-scope classes
+- Implement template matching as a second classical baseline for symbol classification
+- Compare classical vs CNN baseline performance using mAP and AP@0.5
