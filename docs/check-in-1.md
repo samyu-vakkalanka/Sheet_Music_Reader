@@ -109,10 +109,20 @@ The distribution of the training instance counts of the 30 symbol classes that I
 ## 4. Evaluation Plan
 
 **Metrics:**
-<!-- mAP, AP@0.5 IoU — justify by citing the DeepScores V2 paper -->
+- mAP (mean Average Precision) across all in-scope classes - the standard metric for object detection, also used as the primary benchmark in the DeepScores V2 paper
+- AP@0.5 IoU per class — reports average precision at 0.5 intersection-over-union threshold, giving a per-class breakdown useful for identifying which symbol types the model struggles with
+
+These metrics are chosen to match the DeepScores V2 paper's evaluation which allows me to directly compare my results with the published Faster R-CNN and Deep Watershed Detector baselines.
+
+- End-to-end correctness: whether a detected page produces a musically plausible MIDI output (evaluated qualitatively on a small held-out set)
+
 
 **Train/Val/Test Split:**
-<!-- Document the existing split that comes with the dataset -->
+The dense subset comes with a predefined split:
+- Training: 1,362 images
+- Test: 352 images
+
+A validation set will be made from the training split (approximately 80/20) for hyperparameter tuning and early stopping, keeping the test set entirely held out until final evaluation.
 
 ---
 
