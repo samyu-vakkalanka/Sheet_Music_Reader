@@ -73,7 +73,7 @@ Overall validation accuracy: 94.78%
 ### Failure Analysis
 
 ![Failure Cases](../notebooks/classical_baseline_outputs/hog_failure_cases.png)
-![Systematic Confusion Pairs](assets/hog_confusion_pairs.png)
+![Systematic Confusion Pairs](../notebooks/classical_baseline_outputs/hog_confusion_pairs.png)
 
 There were three failure patterns that came from the misclassified crops when I compared them manually:
 
