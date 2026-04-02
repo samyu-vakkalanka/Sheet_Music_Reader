@@ -92,31 +92,68 @@ Key takeaway: HOG+SVM performs surprisingly well (94.78%) on visually different 
 ## 2. CNN Baseline: YOLOv8
 
 ### Approach
-<!-- Brief description of YOLOv8 setup, training config -->
+I decided to use YOLOv8s (the small variant of YOLOv8) as the CNN baseline, fine-tuned on the DeepScores V2 dense training set filtered to our 30 in-scope symbol classes.
+
+Unlike the HOG+SVM classifier which operates on pre-cropped symbols using ground truth bounding boxes, YOLOv8 performs full object detection. It takes a raw sheet music page image as input and predicts bounding boxes and class labels from scratch. This makes it a harder but more realistic task.
+
+Data preparation:
+I had to convert the DeepScores V2 annotations from the OBBAnns JSON format to YOLO format using src/data_utils.py. This involved:
+- Filtering to in-scope classes only (30 classes)
+- Mapping DeepScores category names to integer class IDs (0–29)
+- Converting absolute bounding boxes [x0, y0, x1, y1] to normalized YOLO format [cx, cy, w, h] relative to image dimensions
+- Writing one .txt label file per image
+- 387 degenerate bounding boxes skipped out of ~1.1 million total (negligible)
+
+Training configuration:
+- Model: YOLOv8s (pretrained on COCO, fine-tuned on DeepScores V2)
+- Image size: 640px
+- Batch size: 8
+- Epochs: 50 (with early stopping, patience=10)
+- Hardware: NVIDIA Tesla T4 (Google Colab)
+- Optimizer: default AdamW
+- Validation set: DeepScores V2 test split (352 images)
+
+Why YOLOv8 over Faster R-CNN:
+The DeepScores V2 paper uses Faster R-CNN as its baseline. YOLOv8 was chosen here for the faster training time on a single GPU. This means that directly  comparing my model to the paper's Faster R-CNN results will be approximate, but the evaluation metrics (mAP@0.5) are the same.
 
 ### Results
-<!-- mAP, AP@0.5, per-class breakdown -->
 
 ### Failure Analysis
-<!-- What breaks and why -->
 
 
 
 ## 3. Comparison
 
 ### Metrics Summary
-<!-- Side by side table of both baselines -->
 
 ### Discussion
-<!-- What improved, what didn't, why -->
-
 
 
 ## 4. End-to-End Demo
-<!-- Description of MIDI output pipeline -->
-<!-- Link to demo or rendered output -->
 
+See [`notebooks/cnn_baseline.ipynb`](../notebooks/cnn_baseline.ipynb) for the full runnable demo.
 
+### Pipeline
+Given a sheet music page image, the full pipeline is:
+
+1. Detection — YOLOv8s (trained on DeepScores V2) detects and classifies all in-scope musical symbols on the page, returning bounding boxes, class labels, and confidence scores
+2. Staff line detection — horizontal projection profile detects all staff lines, which are grouped into staves (5 lines each) and then into systems (rows of staves) by detecting large vertical gaps
+3. Staff assignment — each detection is assigned to its nearest staff based on bounding box center y-coordinate
+4. Clef identification — the most confident clefG or clefF detection on each staff determines whether it is treble or bass clef
+5. Key inference — keySharp and keyFlat detections are counted per staff and mapped to a key signature via lookup table (e.g. 2 sharps → D major)
+6. Time signature inference — timeSig detections are parsed from the first system; stacked numerals (e.g. timeSig4 + timeSig4) are combined into a time signature
+7. Pitch assignment — each notehead's center y-coordinate is converted to a staff position integer relative to the middle staff line, then mapped to a pitch (A–G) and octave via clef-specific lookup table
+8. Rhythm assignment — notehead type determines base duration (black=quarter, half=half, whole=whole); nearby beam and flag detections adjust black noteheads to eighth or sixteenth notes
+9. MIDI export — treble staves across all systems are concatenated into one music21 Part, bass staves into another, combined into a Score, and exported to a .mid file
+
+### Scope and Limitations
+- Only treble (clefG) and bass (clefF) staves are converted, other clef types are ignored
+- Treble and bass parts are each concatenated across all systems on the page, making this well-suited for piano sheet music (one treble + one bass part) but not for complex orchestral scores where multiple instruments share the same clef type
+- Ties, slurs, dynamics, and ornaments are not handled, they are out of scope for this milestone
+- Pitch inference depends on accurate staff line detection and notehead localization; errors in either propagate to incorrect pitches
+- Multi-staff synchronization is approximate. Parts are concatenated one after the other rather than actually matching up by beat position
+
+### Demo Output
+<!-- Add rendered audio / MIDI download link after running -->
 
 ## 5. Next Steps
-<!-- What you're doing for check-in 3 -->
