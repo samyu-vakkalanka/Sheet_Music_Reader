@@ -118,15 +118,100 @@ The DeepScores V2 paper uses Faster R-CNN as its baseline. YOLOv8 was chosen her
 
 ### Results
 
+Overall mAP@0.5: 0.489 | mAP@0.5:0.95: 0.275
+
+Training completed in 1.86 hours on a Tesla T4 GPU (50 epochs, early stopping patience=10). The model did not trigger early stopping, suggesting continued improvement was possible beyond 50 epochs.
+
+| Class | mAP@0.5 |
+|---|---|
+| clefG | 0.995 |
+| clefF | 0.976 |
+| restQuarter | 0.835 |
+| keySharp | 0.777 |
+| noteheadBlackInSpace | 0.773 |
+| noteheadBlackOnLine | 0.773 |
+| rest8th | 0.769 |
+| keyFlat | 0.755 |
+| timeSigCutCommon | 0.684 |
+| flag8thDown | 0.680 |
+| noteheadWholeOnLine | 0.620 |
+| noteheadHalfOnLine | 0.605 |
+| noteheadWholeInSpace | 0.596 |
+| beam | 0.595 |
+| noteheadHalfInSpace | 0.577 |
+| accidentalSharp | 0.553 |
+| flag8thUp | 0.511 |
+| timeSig4 | 0.487 |
+| restWhole | 0.465 |
+| accidentalFlat | 0.299 |
+| restHalf | 0.276 |
+| timeSigCommon | 0.260 |
+| accidentalNatural | 0.248 |
+| flag16thDown | 0.200 |
+| flag16thUp | 0.162 |
+| timeSig3 | 0.112 |
+| timeSig2 | 0.077 |
+| ledgerLine | 0.000 |
+| stem | 0.000 |
+| augmentationDot | 0.000 |
+
+![YOLOv8 Per-Class mAP](../notebooks/cnn_baseline_outputs/yolo_map_per_class.png)
+
+![YOLOv8 Predictions](../notebooks/cnn_baseline_outputs/yolo_predictions.png)
+
 ### Failure Analysis
 
+1. Resolution-induced disappearance of thin symbols
+The three complete failures (stem (0.000), ledgerLine (0.000), and augmentationDot (0.000)) share a common cause: they are extremely thin or small symbols that become sub-pixel when images are downscaled from full resolution (~1960×2772px) to YOLOv8's inference size (640×480px). A stem that is 3-4px wide at full resolution effectively disappears at 640px. This is visible in the resolution comparison visualization below. Stems are clearly distinguishable at full resolution but become indistinct blobs at inference resolution. This is a known challenge in OMR: the DeepScores V2 paper reported the same stem detection failure with their Faster R-CNN baseline.
 
+Proposed fix for check-in 3: train at higher resolution (imgsz=1280 or 1600) or use a tiling approach where the full-res image is split into overlapping crops, detected at full resolution, and results merged.
+
+![Resolution Failure](../notebooks/cnn_baseline_outputs/yolo_resolution_failure.png)
+
+2. Rare class underperformance
+timeSig2 (0.077), timeSig3 (0.112), and flag16thUp (0.162) all have
+very few training instances (274, 823, and 263 respectively). The model simply hasn't seen enough examples to generalize well.
+
+3. Visually similar accidentals
+accidentalFlat (0.299) and accidentalNatural (0.248) perform poorly relative to accidentalSharp (0.553). Flats and naturals are visually similar to key signature symbols and to each other, and their small size at inference resolution compounds the problem.
 
 ## 3. Comparison
 
 ### Metrics Summary
 
+| | HOG + SVM | YOLOv8 |
+|---|---|---|
+| Task | Crop-level classification | Full page detection |
+| Primary metric | Accuracy / macro F1 | mAP@0.5 |
+| Overall result | 94.78% accuracy, F1=0.95 | mAP@0.5=0.489 |
+| Best classes | clefs, flags, time sigs (F1=1.00) | clefG (0.995), clefF (0.976) |
+| Worst classes | stem (F1=0.77), beam (F1=0.81) | stem (0.000), ledgerLine (0.000) |
+| Training time | ~5 min (SVM fit) | 1.86 hours (GPU) |
+| Input | Pre-cropped symbol (GT bbox) | Raw full page image |
+
 ### Discussion
+
+The two baselines are solving  different problems so direct numerical comparison is not straightforward. The HOG+SVM classifier operates on ground truth crops. It is given the correct bounding box and only needs to classify the symbol inside. YOLOv8 must find and classify symbols from scratch on a full page with hundreds of overlapping objects. The CNN baseline is the harder and more realistic task.
+
+That said, several patterns are consistent across both baselines.
+
+What both models agree on:
+- Clefs are easy. Both achieve near-perfect performance. Their large, distinctive shapes are unambiguous at any resolution
+- Stems are hard. HOG+SVM has low precision on stems (0.62) due to shape ambiguity; YOLOv8 fails entirely due to resolution loss. This is the most consistent failure mode across both approaches
+- Key signatures perform well. keySharp and keyFlat are reliably detected by both models, which is important for pitch inference
+
+Where the CNN wins:
+- Full detection pipeline. YOLOv8 finds symbols on a raw page without needing ground truth bounding boxes, which is the real task
+- Scale awareness. The feature pyramid network handles multi-scale symbols better than fixed 64×64 HOG crops
+- Notehead detection is strong and reliable, which is the most important class for musical output
+
+Where HOG+SVM wins:
+- On visually distinctive symbols given clean crops, HOG+SVM is extremely accurate (F1=1.00 on many classes). This suggests the classification problem itself is largely solved. The hard problem is detection and localization
+- No GPU required, trains in minutes
+
+Key insight:
+The dominant failure mode for both models is thin symbol detection like stems, ledger lines, and augmentation dots. For HOG+SVM this is a shape ambiguity problem; for YOLOv8 it is a resolution problem. Check-in 3 will address this directly by training at higher resolution or using a tiled inference approach, and potentially switching to a transformer-based backbone with better small-object detection.
+
 
 
 ## 4. End-to-End Demo
@@ -153,7 +238,22 @@ Given a sheet music page image, the full pipeline is:
 - Pitch inference depends on accurate staff line detection and notehead localization; errors in either propagate to incorrect pitches
 - Multi-staff synchronization is approximate. Parts are concatenated one after the other rather than actually matching up by beat position
 
-### Demo Output
-<!-- Add rendered audio / MIDI download link after running -->
-
 ## 5. Next Steps
+
+The following improvements are planned for Check-in 3:
+
+Addressing the resolution failure (highest priority)
+The complete failure on stem, ledgerLine, and augmentationDot is directly caused by downscaling high-resolution sheet music to 640px for inference. Check-in 3 will address this by either:
+- Training at higher resolution (imgsz=1280 or 1600) to preserve thin symbol detail
+- Implementing a tiled inference approach where full-res pages are split into overlapping crops, detected at full resolution, and merged via non-maximum suppression
+
+Advanced model extension
+As the check-in 3 advanced topic, I plan to explore one of:
+- A Vision Transformer (ViT) based detection backbone, which may handle the extreme scale variation between symbol classes better than the CNN feature pyramid
+- A larger YOLOv8 variant (YOLOv8m or YOLOv8l) trained at higher resolution
+
+MIDI pipeline refinement
+The end-to-end MIDI conversion pipeline introduced in this check-in will be refined based on listening tests especially related to pitch assignment accuracy and rhythm inference for beamed note groups.
+
+Improving rare class performance
+timeSig2, timeSig3, and flag16thUp/Down underperform due to low training instance counts. Data augmentation strategies targeting these classes will be explored.
