@@ -36,6 +36,11 @@ sheet-music-reader/
 │       └── identification.png
 │       └── thresholds.png
 │   └── classical_baseline.ipynb
+│   └── classical_baseline_outputs/
+│       └── hog_confusion_matrix.png
+│       └── hog_confusion_pairs.png
+│       └── hog_failure_cases.png
+│       └── hog_sample_crops.png
 │   └── cnn_baseline.ipynb
 ├── data/
 └── src/
