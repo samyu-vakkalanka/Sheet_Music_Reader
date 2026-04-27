@@ -58,3 +58,22 @@ Model weights are not stored in this repo due to file size.
 This project uses the DeepScores V2 dataset. See [check-in-1.md](docs/check-in-1.md) for full access and download instructions.
 
 *Requirements file will be added as the project develops.*
+
+## Demo
+
+A local Gradio app is available for live inference and audio playback.
+
+**Requirements:**
+```bash
+pip install ultralytics gradio music21 midi2audio
+brew install fluidsynth  # Mac only
+```
+
+**Run:**
+```bash
+python src/app.py
+```
+
+Then open `http://127.0.0.1:7860` in your browser. Upload any printed piano sheet music page and the app will detect symbols, convert to MIDI, and play audio.
+
+Model weights are not included in this repo. Download from [Google Drive](https://drive.google.com/drive/folders/1KHI4Ot9Y3CIJi-Ayn13PKKYbq34ZOTOq?usp=sharing) and place in `models/`.
