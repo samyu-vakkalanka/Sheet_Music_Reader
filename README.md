@@ -12,8 +12,7 @@ Built as a semester-long CV project using the [DeepScores V2](https://zenodo.org
 |-------|----------|
 | Check-in 1 — Problem Framing & Data | [check-in-1.md](docs/check-in-1.md) |
 | Check-in 2 — Fundamentals | [check-in-2.md](docs/check-in-2.md) |
-| Check-in 3 — Advanced Extension (coming soon) | — |
-| Final Report (coming soon) | — |
+| Check-in 3 — Advanced Extension  | [check-in-3.md](docs/check-in-3.md) |
 
 ---
 
@@ -43,9 +42,14 @@ sheet-music-reader/
 │       └── hog_sample_crops.png
 │   └── cnn_baseline.ipynb
 ├── data/
+├── models/
 └── src/
 │   └── data_utils.py
+│   └── midi_converter.py
 ```
+
+## Model Weights
+Model weights are not stored in this repo due to file size.
 
 ---
 

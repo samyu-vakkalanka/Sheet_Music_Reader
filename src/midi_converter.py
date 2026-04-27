@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image
 from scipy.signal import find_peaks
 from music21 import stream, note, pitch, tempo, meter, key
+from music21 import key as m21key
 from pathlib import Path
 
 
@@ -51,20 +52,21 @@ FLAT_KEYS = {
 # Position 0 = middle line (B4), positive = higher, negative = lower
 # Positions are in half-steps from the middle line
 TREBLE_POSITIONS = {
-    8: ('E', 6), 7: ('D', 6), 6: ('C', 6),
-    5: ('B', 5), 4: ('A', 5), 3: ('G', 5), 2: ('F', 5), 1: ('E', 5),
-    0: ('D', 5), -1: ('C', 5), -2: ('B', 4), -3: ('A', 4), -4: ('G', 4),
-    -5: ('F', 4), -6: ('E', 4), -7: ('D', 4), -8: ('C', 4),
-    -9: ('B', 3), -10: ('A', 3)
+    10: ('E', 6), 9: ('D', 6), 8: ('C', 6), 7: ('B', 5), 6: ('A', 5),
+    5: ('G', 5), 4: ('F', 5), 3: ('E', 5), 2: ('D', 5), 1: ('C', 5),
+    0: ('B', 4),
+    -1: ('A', 4), -2: ('G', 4), -3: ('F', 4), -4: ('E', 4),
+    -5: ('D', 4), -6: ('C', 4), -7: ('B', 3), -8: ('A', 3),
+    -9: ('G', 3), -10: ('F', 3)
 }
 
-# Staff position → pitch name for bass clef
 BASS_POSITIONS = {
-    8: ('G', 4), 7: ('F', 4), 6: ('E', 4),
-    5: ('D', 4), 4: ('C', 4), 3: ('B', 3), 2: ('A', 3), 1: ('G', 3),
-    0: ('F', 3), -1: ('E', 3), -2: ('D', 3), -3: ('C', 3), -4: ('B', 2),
-    -5: ('A', 2), -6: ('G', 2), -7: ('F', 2), -8: ('E', 2),
-    -9: ('D', 2), -10: ('C', 2)
+    10: ('G', 3), 9: ('F', 3), 8: ('E', 3), 7: ('D', 3), 6: ('C', 3),
+    5: ('B', 2), 4: ('A', 2), 3: ('G', 2), 2: ('F', 2), 1: ('E', 2),
+    0: ('D', 2),
+    -1: ('C', 2), -2: ('B', 1), -3: ('A', 1), -4: ('G', 1),
+    -5: ('F', 1), -6: ('E', 1), -7: ('D', 1), -8: ('C', 1),
+    -9: ('B', 0), -10: ('A', 0)
 }
 
 # Notehead class → base duration in quarter notes
@@ -220,6 +222,28 @@ def get_duration(class_name, nearby_beams, nearby_flags):
 
 # ── Core conversion ───────────────────────────────────────────────────────────
 
+def apply_key_to_pitch(pitch_str, key_sharps, key_flats):
+    """Apply key signature accidentals to a pitch name."""
+    if key_sharps == 0 and key_flats == 0:
+        return pitch_str
+    
+    if key_sharps > 0:
+        k = m21key.Key(SHARP_KEYS.get(key_sharps, 'C'))
+    else:
+        k = m21key.Key(FLAT_KEYS.get(key_flats, 'C'))
+    
+    p = pitch.Pitch(pitch_str)
+    
+    # Compare by pitch name (letter) not pitch class
+    for alteredPitch in k.alteredPitches:
+        if alteredPitch.name[0] == p.name[0]:  # compare letter only e.g. 'F' == 'F'
+            p.accidental = alteredPitch.accidental
+            break
+    
+    return str(p)
+
+
+
 def detections_to_music21_part(detections, staff_lines, clef_type,
                                 key_sharps=0, key_flats=0,
                                 time_sig_num=4, time_sig_den=4):
@@ -284,7 +308,8 @@ def detections_to_music21_part(detections, staff_lines, clef_type,
                 position, clef_type, key_sharps, key_flats
             )
 
-            n = note.Note(pitch_str, quarterLength=dur)
+            adjusted_pitch = apply_key_to_pitch(pitch_str, key_sharps, key_flats)
+            n = note.Note(adjusted_pitch, quarterLength=dur)
             part.append(n)
 
     return part
@@ -338,34 +363,34 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
     # Detect staff lines and group into systems
     peaks = detect_staff_lines(img)
     staves = group_lines_into_staves(peaks)
-    systems = group_staves_into_systems(staves)
-    print(f"Detected {len(staves)} staves in {len(systems)} systems")
+    print(f"Detected {len(staves)} staves")
 
-    if not systems:
+    if not staves:
         print("No staves detected — cannot convert to MIDI")
         return None
 
-    # Collect treble and bass staves across all systems
+
+     # Collect treble and bass staves
+    # Use clef detection where available, fall back to alternating assumption
     treble_staves = []
     bass_staves = []
 
-    for system in systems:
-        # Assign clef to each staff in this system
-        for staff_lines in system:
-            staff_dets = assign_symbols_to_staff(detections, staff_lines)
-            clefs = [d for d in staff_dets
-                    if d['class'] in ('clefG', 'clefF')]
+    for i, staff_lines in enumerate(staves):
+        staff_dets = assign_symbols_to_staff(detections, staff_lines)
+        clefs = [d for d in staff_dets
+                if d['class'] in ('clefG', 'clefF')]
 
-            if not clefs:
-                continue
-
-            # Take the most confident clef detection
+        if clefs:
             best_clef = max(clefs, key=lambda d: d['conf'])
+            is_treble = best_clef['class'] == 'clefG'
+        else:
+            # Fall back to alternating: even index = treble, odd = bass
+            is_treble = (i % 2 == 0)
 
-            if best_clef['class'] == 'clefG':
-                treble_staves.append((staff_lines, staff_dets))
-            elif best_clef['class'] == 'clefF':
-                bass_staves.append((staff_lines, staff_dets))
+        if is_treble:
+            treble_staves.append((staff_lines, staff_dets))
+        else:
+            bass_staves.append((staff_lines, staff_dets))
 
     print(f"Treble staves: {len(treble_staves)}, Bass staves: {len(bass_staves)}")
 
@@ -379,12 +404,15 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
     def build_part(staff_list, clef_type):
         """Concatenate detections from multiple staves into one Part."""
         combined_part = stream.Part()
-
+        first_sharps = 0
+        first_flats = 0
         for i, (staff_lines, staff_dets) in enumerate(staff_list):
-            # Infer key from first system only
             if i == 0:
-                n_sharps = sum(1 for d in staff_dets if d['class'] == 'keySharp')
-                n_flats = sum(1 for d in staff_dets if d['class'] == 'keyFlat')
+                first_sharps = sum(1 for d in staff_dets if d['class'] == 'keySharp')
+                first_flats = sum(1 for d in staff_dets if d['class'] == 'keyFlat')
+                n_sharps = first_sharps
+                n_flats = first_flats
+
             else:
                 n_sharps = 0
                 n_flats = 0
@@ -409,8 +437,9 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
                     else:
                         ts_num, ts_den = 4, 4  # default
             else:
-                n_sharps = 0
-                n_flats = 0
+                # Keep same key signature throughout — don't reset to C major
+                n_sharps = first_sharps
+                n_flats = first_flats
                 ts_num, ts_den = 4, 4
 
             part = detections_to_music21_part(
