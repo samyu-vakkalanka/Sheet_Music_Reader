@@ -58,7 +58,7 @@ sheet-music-reader/
 ```
 
 ## Model Weights
-Model weights are not stored in this repo due to file size.
+Model weights are not stored in this repo due to file size. Download from [Google Drive](https://drive.google.com/drive/folders/1KHI4Ot9Y3CIJi-Ayn13PKKYbq34ZOTOq?usp=sharing).
 
 ---
 
