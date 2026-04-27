@@ -41,6 +41,15 @@ sheet-music-reader/
 │       └── hog_failure_cases.png
 │       └── hog_sample_crops.png
 │   └── cnn_baseline.ipynb
+│   └── cnn_baseline_outputs/
+│       └── test3.png
+│       └── yolo_map_per_class.png
+│       └── yolo_predictions.png
+│       └── yolo_resolution_failure.png
+│   └── advanced_extension_ablation.ipynb
+│   └── advanced_extension_ablation_outputs/
+│   └── advanced_extension_RTDETR.ipynb
+│   └── advanced_extension_RTDETR_outputs/
 ├── data/
 ├── models/
 └── src/
