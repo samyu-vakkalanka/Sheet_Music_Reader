@@ -214,7 +214,7 @@ Higher resolution helps most for: small isolated symbols (dots, accidentals, fla
 
 ### Discussion
 
-![640px Training Curves](../notebooks/advanced_extension_rtdetr_outputs/three_way_comparison.png)
+![3 way maP comparison](../notebooks/advanced_extension_rtdetr_outputs/three_way_comparison.png)
 
 The three-way comparison tells a clear and somewhat surprising story.
 
@@ -236,16 +236,58 @@ For deployment, YOLOv8s at 1280px is the clear winner. It had stronger performan
 ---
 
 ## 4. End-to-End Demo
-The full pipeline demo is available as a local Gradio app in `app.py`.
+
+The full pipeline demo is available as a local Gradio app in `src/app.py`.
 
 **To run:**
 ```bash
 pip install ultralytics gradio music21 midi2audio
 brew install fluidsynth  # Mac only
-python app.py
+python src/app.py
 ```
 
-Then upload any printed sheet music image and the app will detect symbols, convert to MIDI, and play audio in the browser.
+Then open `http://127.0.0.1:7860` in your browser.
+
+### Pipeline Description
+
+The conversion from image to audio involves two stages:
+
+#### Stage 1 — Symbol Detection (`src/app.py` → YOLOv8/RT-DETR)
+The uploaded image is passed through the trained detector which returns bounding boxes, class labels, and confidence scores for every detected musical symbol.
+
+#### Stage 2 — Music Theory Post-Processing (`src/midi_converter.py`)
+The detections are converted to audio through the following steps:
+
+1. Staff line detection — horizontal projection profiles identify the y-coordinates of all staff lines on the page. Lines are grouped into staves (5 lines each) using consistent spacing.
+
+2. Staff assignment — each detection is assigned to its nearest staff based on bounding box center y-coordinate. Clef type (treble/bass) is determined by the most confident `clefG` or `clefF` detection on each staff.
+
+3. Key inference** — `keySharp` and `keyFlat` detections are counted on the first staff and mapped to a key signature via lookup table (e.g. 1 sharp → G major, 2 flats → Bb major). The key is applied to all subsequent pitch assignments.
+
+4. Time signature inference — `timeSig` detections are parsed from the first system. Stacked numerals (e.g. `timeSig4` + `timeSig4`) are combined into a time signature. Defaults to 4/4 if not detected.
+
+5. Pitch assignment — each notehead's center y-coordinate is converted to a staff position integer relative to the middle staff line (line 3 of 5). This position is looked up in a clef-specific table mapping positions to pitch names and octaves (e.g. treble clef middle line = B4). Key signature accidentals are then applied.
+
+6. Rhythm assignment — notehead type determines base duration (filled = quarter, half = half, whole = whole). Nearby `beam` and `flag` detections within 100px adjust black noteheads to eighth or sixteenth notes.
+
+7. Score assembly — treble staves are concatenated across all systems into one music21 Part, bass staves into another. Both parts are combined into a Score with key signature, time signature, and tempo markings.
+
+8. MIDI export — the Score is written to a `.mid` file via music21, then converted to `.wav` audio using FluidSynth with a General MIDI soundfont.
+
+### Known Limitations
+- Defaults to 4/4 time — 3/4 and other time signatures are rarely detected reliably (timeSig3 mAP@0.5 = 0.112–0.184 across all models)
+- Stem detection is zero across all models — rhythm inference relies on notehead type and beams only, missing some duration information
+- Pitch calibration is tuned for printed scores at standard engraving sizes — may drift on unusual page layouts
+- Ties, slurs, dynamics, ornaments, and repeat signs are not handled
+
+### Demo Output
+
+The app accepts any printed piano sheet music image and produces:
+- An annotated image showing all detected symbols with colored bounding boxes
+- Audio playback of the detected score
+- A status summary showing detection counts and top classes
+
+![Reader App Demo Screenshot](../notebooks/advanced_extension_rtdetr_outputs/demo.png)
 
 ---
 
