@@ -16,7 +16,7 @@ Pipeline:
 import numpy as np
 from PIL import Image
 from scipy.signal import find_peaks
-from music21 import stream, note, pitch, tempo, meter, key
+from music21 import stream, note, chord, pitch, tempo, meter, key
 from music21 import key as m21key
 from pathlib import Path
 
@@ -47,6 +47,55 @@ SHARP_KEYS = {
 FLAT_KEYS = {
     0: 'C', 1: 'F', 2: 'Bb', 3: 'Eb', 4: 'Ab', 5: 'Db', 6: 'Gb', 7: 'Cb'
 }
+
+# Order in which accidentals are added to key signatures
+SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B']
+FLAT_ORDER  = ['B', 'E', 'A', 'D', 'G', 'C', 'F']
+
+
+def count_key_accidentals(all_detections, staff_lines):
+    """
+    Count key-signature accidentals using the RAW detection list with strict
+    y-bounds (the 5 staff lines ± 5px).  Working from raw detections avoids
+    the inflated list produced by assign_symbols_to_staff's 0.8x padding,
+    which otherwise pulls in the adjacent staff's key symbols.
+    x-bound: left of the first notehead on this specific staff.
+    """
+    y_min = staff_lines[0]  - 5
+    y_max = staff_lines[-1] + 5
+
+    noteheads_here = [
+        d for d in all_detections
+        if d['class'] in NOTEHEAD_DURATIONS
+        and y_min <= (d['y0'] + d['y1']) / 2 <= y_max
+    ]
+    x_max = (
+        min((d['x0'] + d['x1']) / 2 for d in noteheads_here)
+        if noteheads_here else float('inf')
+    )
+
+    def in_key_zone(d, cls):
+        cy = (d['y0'] + d['y1']) / 2
+        cx = (d['x0'] + d['x1']) / 2
+        return d['class'] == cls and y_min <= cy <= y_max and cx < x_max
+
+    n_sharps = sum(1 for d in all_detections if in_key_zone(d, 'keySharp'))
+    n_flats  = sum(1 for d in all_detections if in_key_zone(d, 'keyFlat'))
+    return n_sharps, n_flats
+
+
+def describe_key_signature(n_sharps, n_flats):
+    """Return a human-readable key signature description, e.g. 'D major (2 sharps: F#, C#)'."""
+    if n_sharps > 0:
+        affected = ', '.join(f'{n}#' for n in SHARP_ORDER[:n_sharps])
+        key_name = SHARP_KEYS.get(n_sharps, '?')
+        return f'{key_name} major ({n_sharps} sharp{"s" if n_sharps > 1 else ""}: {affected})'
+    elif n_flats > 0:
+        affected = ', '.join(f'{n}b' for n in FLAT_ORDER[:n_flats])
+        key_name = FLAT_KEYS.get(n_flats, '?')
+        return f'{key_name} major ({n_flats} flat{"s" if n_flats > 1 else ""}: {affected})'
+    else:
+        return 'C major (no accidentals)'
 
 # Staff position → pitch name for treble clef
 # Position 0 = middle line (B4), positive = higher, negative = lower
@@ -284,33 +333,53 @@ def detections_to_music21_part(detections, staff_lines, clef_type,
     beams = [d for d in detections if 'beam' in d['class']]
     flags = [d for d in detections if 'flag' in d['class']]
 
+    # Group symbols into temporal events by x-proximity.
+    # Notes whose x-centers fall within chord_threshold of the current group's
+    # first note are treated as simultaneous (a chord), not sequential.
+    space = (staff_lines[-1] - staff_lines[0]) / 4.0
+    chord_threshold = space * 1.2  # ~1 staff space — generous enough for offset noteheads
+
+    events = []  # list of lists of symbols
     for sym in symbols:
         cx = (sym['x0'] + sym['x1']) / 2.0
-        cy = (sym['y0'] + sym['y1']) / 2.0
+        if events:
+            first_cx = (events[-1][0]['x0'] + events[-1][0]['x1']) / 2.0
+            if cx - first_cx < chord_threshold:
+                events[-1].append(sym)
+                continue
+        events.append([sym])
 
-        if sym['class'] in rest_classes:
+    for group in events:
+        noteheads = [s for s in group if s['class'] in notehead_classes]
+        rests     = [s for s in group if s['class'] in rest_classes]
+
+        # Rests are always solo — append them individually
+        for sym in rests:
             dur = REST_DURATIONS[sym['class']]
-            r = note.Rest(quarterLength=dur)
-            part.append(r)
+            part.append(note.Rest(quarterLength=dur))
 
-        elif sym['class'] in notehead_classes:
-            # Find nearby beams and flags (within 100px horizontally)
-            nearby_beams = [b for b in beams
-                           if abs((b['x0'] + b['x1']) / 2.0 - cx) < 100]
-            nearby_flags = [f['class'] for f in flags
-                           if abs((f['x0'] + f['x1']) / 2.0 - cx) < 100]
+        if not noteheads:
+            continue
 
-            dur = get_duration(sym['class'], nearby_beams, nearby_flags)
+        # Use the first notehead's x to look up beams/flags for duration
+        ref_cx = (noteheads[0]['x0'] + noteheads[0]['x1']) / 2.0
+        nearby_beams = [b for b in beams
+                        if abs((b['x0'] + b['x1']) / 2.0 - ref_cx) < 100]
+        nearby_flags = [f['class'] for f in flags
+                        if abs((f['x0'] + f['x1']) / 2.0 - ref_cx) < 100]
+        dur = get_duration(noteheads[0]['class'], nearby_beams, nearby_flags)
 
-            # Get pitch
+        pitches = []
+        for sym in noteheads:
+            cy = (sym['y0'] + sym['y1']) / 2.0
             position = get_staff_position(cy, staff_lines)
-            pitch_str = get_pitch_from_position(
-                position, clef_type, key_sharps, key_flats
-            )
+            pitch_str = get_pitch_from_position(position, clef_type, key_sharps, key_flats)
+            pitches.append(apply_key_to_pitch(pitch_str, key_sharps, key_flats))
 
-            adjusted_pitch = apply_key_to_pitch(pitch_str, key_sharps, key_flats)
-            n = note.Note(adjusted_pitch, quarterLength=dur)
-            part.append(n)
+        if len(pitches) == 1:
+            part.append(note.Note(pitches[0], quarterLength=dur))
+        else:
+            part.append(chord.Chord(pitches, quarterLength=dur))
 
     return part
 
@@ -367,7 +436,7 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
 
     if not staves:
         print("No staves detected — cannot convert to MIDI")
-        return None
+        return None, ""
 
 
      # Collect treble and bass staves
@@ -396,7 +465,13 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
 
     if not treble_staves and not bass_staves:
         print("No clef detections found — cannot determine staff type")
-        return None
+        return None, ""
+
+    # Detect key signature from the first staff using raw detections + strict y-bounds.
+    first_staff_lines = (treble_staves[0] if treble_staves else bass_staves[0])[0]
+    detected_sharps, detected_flats = count_key_accidentals(detections, first_staff_lines)
+    key_info = describe_key_signature(detected_sharps, detected_flats)
+    print(f"Key signature: {key_info}")
 
     # Build score
     score = stream.Score()
@@ -408,8 +483,7 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
         first_flats = 0
         for i, (staff_lines, staff_dets) in enumerate(staff_list):
             if i == 0:
-                first_sharps = sum(1 for d in staff_dets if d['class'] == 'keySharp')
-                first_flats = sum(1 for d in staff_dets if d['class'] == 'keyFlat')
+                first_sharps, first_flats = count_key_accidentals(detections, staff_lines)
                 n_sharps = first_sharps
                 n_flats = first_flats
 
@@ -471,4 +545,4 @@ def convert_page_to_midi(image_path, yolo_results, output_path,
     output_path.parent.mkdir(parents=True, exist_ok=True)
     score.write('midi', fp=str(output_path))
     print(f"MIDI saved to {output_path}")
-    return output_path
+    return output_path, key_info

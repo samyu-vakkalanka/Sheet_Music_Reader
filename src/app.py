@@ -100,7 +100,7 @@ def process_sheet_music(image, model_name, conf_threshold):
 
         # MIDI conversion
         midi_path = TEMP_DIR / 'output.mid'
-        result_path = convert_page_to_midi(
+        result_path, key_info = convert_page_to_midi(
             image_path=str(img_path),
             yolo_results=results[0],
             output_path=str(midi_path),
@@ -118,6 +118,7 @@ def process_sheet_music(image, model_name, conf_threshold):
         status = (
             f"✓ Detected {n_detections} symbols\n"
             f"Top classes: {top_classes}\n"
+            f"Key signature: {key_info}\n"
             f"✓ MIDI conversion complete\n"
             f"✓ Audio ready"
         )
@@ -335,8 +336,6 @@ html, body, #root, #root > div, .gradio-container, .app, footer {
 
 with gr.Blocks(
     title="Sheet Music Reader",
-    theme=gr.themes.Base(),
-    css=css,
 ) as demo:
 
     gr.Markdown("""
@@ -363,7 +362,7 @@ Trained on DeepScores V2. Works best on clean printed scores. Handwritten music 
             )
             model_selector = gr.Dropdown(
                 choices=available_names,
-                value=available_names[0] if available_names else None,
+                value='YOLOv8s — 1280px (Ablation)' if 'YOLOv8s — 1280px (Ablation)' in available_names else available_names[0],
                 label="Detection Model"
             )
             conf_slider = gr.Slider(
@@ -379,6 +378,15 @@ Trained on DeepScores V2. Works best on clean printed scores. Handwritten music 
                 elem_classes="run-btn"
             )
 
+            gr.Examples(
+                examples=[
+                    [str(Path(__file__).parent / "examples/minuet.png")],
+                    [str(Path(__file__).parent / "examples/amazing_grace.png")],
+                    [str(Path(__file__).parent / "examples/canon_in_d.png")],
+                ],
+                inputs=image_input,
+                label="Try an example"
+            )
         with gr.Column(scale=1):
             gr.Markdown("### The Performance")
             annotated_output = gr.Image(
@@ -410,4 +418,4 @@ Trained on DeepScores V2. Works best on clean printed scores. Handwritten music 
     """)
 
 if __name__ == '__main__':
-    demo.launch(share=False)
+    demo.launch(share=False, theme=gr.themes.Base(), css=css)
