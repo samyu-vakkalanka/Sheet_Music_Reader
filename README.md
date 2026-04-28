@@ -48,6 +48,11 @@ sheet-music-reader/
 │       └── yolo_resolution_failure.png
 │   └── advanced_extension_ablation.ipynb
 │   └── advanced_extension_ablation_outputs/
+│       └── 1280_confusion_matrix_normalized.png
+│       └── 1280_results.png
+│       └── stem_failure_1280.png
+│       └── yolo_1280_comparison.png
+│       └── yolo_1280_predictions.png
 │   └── advanced_extension_RTDETR.ipynb
 │   └── advanced_extension_RTDETR_outputs/
 ├── data/
