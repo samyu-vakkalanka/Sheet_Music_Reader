@@ -237,7 +237,7 @@ For deployment, YOLOv8s at 1280px is the clear winner. It had stronger performan
 
 ## 4. End-to-End Demo
 
-The full pipeline demo is available as a local Gradio app in `src/app.py`.
+The full pipeline demo is available as a local Gradio app in `src/app.py`. All 3 models are available for testing. Alternatively, there is a version of the app hosted on [Hugging Face](https://huggingface.co/spaces/samyu-vakkalanka/sheet-music-reader), but only the two YOLO models are available due to file size constraints.
 
 **To run:**
 ```bash

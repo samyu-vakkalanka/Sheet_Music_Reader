@@ -75,7 +75,9 @@ This project uses the DeepScores V2 dataset. See [check-in-1.md](docs/check-in-1
 
 ## Demo
 
-A local Gradio app is available for live inference and audio playback.
+A working demo with the 2 YOLOv8s models is available on [Hugging Face](https://huggingface.co/spaces/samyu-vakkalanka/sheet-music-reader)
+
+Alternatively, a local Gradio app with all 3 models is available for live inference and audio playback.
 
 **Requirements:**
 ```bash
