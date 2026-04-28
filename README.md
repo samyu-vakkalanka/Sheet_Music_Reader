@@ -55,6 +55,10 @@ sheet-music-reader/
 │       └── yolo_1280_predictions.png
 │   └── advanced_extension_RTDETR.ipynb
 │   └── advanced_extension_RTDETR_outputs/
+│       └── confusion_matrix_normalized.png
+│       └── demo.png
+│       └── results.png
+│       └── three_way_comparison.png
 ├── data/
 ├── models/
 └── src/
