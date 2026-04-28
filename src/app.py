@@ -54,6 +54,7 @@ def midi_to_wav(midi_path, wav_path):
     cmd = [
         FLUIDSYNTH_PATH,
         '-ni',
+        '-g', '2.5',
         '-F', str(wav_path),
         SOUNDFONT_PATH,
         str(midi_path),
