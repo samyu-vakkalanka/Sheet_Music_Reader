@@ -4,6 +4,12 @@ A computer vision project that detects and classifies musical symbols in printed
 
 Built as a semester-long CV project using the [DeepScores V2](https://zenodo.org/records/4012193) dataset.
 
+**Key Results:**
+- YOLOv8s at 640px: mAP@0.5 = 0.489
+- YOLOv8s at 1280px: mAP@0.5 = 0.594 (+21%)
+- RT-DETR-L: mAP@0.5 = 0.281
+- End-to-end: sheet music image → playable audio
+
 ---
 
 ## Navigation
@@ -13,6 +19,7 @@ Built as a semester-long CV project using the [DeepScores V2](https://zenodo.org
 | Check-in 1 — Problem Framing & Data | [check-in-1.md](docs/check-in-1.md) |
 | Check-in 2 — Fundamentals | [check-in-2.md](docs/check-in-2.md) |
 | Check-in 3 — Advanced Extension  | [check-in-3.md](docs/check-in-3.md) |
+| Final Report | [final.md](docs/final.md) |
 
 ---
 
@@ -62,6 +69,7 @@ sheet-music-reader/
 ├── data/
 ├── models/
 └── src/
+│   └── app.py
 │   └── data_utils.py
 │   └── midi_converter.py
 ```
@@ -75,7 +83,22 @@ Model weights are not stored in this repo due to file size. Download from [Googl
 
 This project uses the DeepScores V2 dataset. See [check-in-1.md](docs/check-in-1.md) for full access and download instructions.
 
-*Requirements file will be added as the project develops.*
+## Setup
+
+```bash
+# Clone the repo
+git clone https://github.com/your-username/Sheet_Music_Reader.git
+cd Sheet_Music_Reader
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install fluidsynth (Mac only, for local audio playback)
+brew install fluidsynth
+
+# Download model weights from Google Drive (link above)
+# Place in models/ directory
+```
 
 ## Demo
 
