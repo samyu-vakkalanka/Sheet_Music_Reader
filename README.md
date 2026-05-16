@@ -87,7 +87,7 @@ This project uses the DeepScores V2 dataset. See [check-in-1.md](docs/check-in-1
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/Sheet_Music_Reader.git
+git clone https://github.com/samyu-vakkalanka/Sheet_Music_Reader.git
 cd Sheet_Music_Reader
 
 # Install dependencies
